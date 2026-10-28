@@ -1,0 +1,3 @@
+Plot Bridge — insert sympy/matplotlib plots into LibreOffice at the cursor.
+Enter one or more functions of x, set ranges, grid and labels, then Insert.
+Requires a system Python 3 with sympy, numpy and matplotlib installed.
