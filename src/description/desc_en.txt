@@ -1,3 +1,19 @@
-Plot Bridge — insert sympy/matplotlib plots into LibreOffice at the cursor.
-Enter one or more functions of x, set ranges, grid and labels, then Insert.
-Requires a system Python 3 with sympy, numpy and matplotlib installed.
+PlotBridge inserts high-quality mathematical plots at the cursor position in Writer, Calc, Impress and Draw. The plot spec is stored on the image, so you can Replot to edit it again later.
+
+Plot types:
+- 2D functions y=f(x) (multiple functions, asymptotes)
+- 2D parametric x(t), y(t)
+- Polar r(theta)
+- Implicit F(x,y)=0
+- 3D surface z=f(x,y)
+- 3D cylindrical z=f(r,theta)
+- 3D spherical r=f(theta,phi)
+- 3D parametric surface x,y,z(u,v)
+
+Also:
+- Examples dropdown (up to 5 per plot type, fills the fields)
+- Colormap selection for 3D surfaces
+- Pi input in ranges (pi, 2pi, pi/2 ...)
+- Windows and Linux
+
+Uses an external system Python 3 with matplotlib, numpy and sympy installed. GPL-3.0.

@@ -4,17 +4,23 @@ TITLE:
 Plot Bridge
 
 SHORT SUMMARY (one line):
-Insert SymPy/Matplotlib function plots at the cursor in Writer, Calc and Impress.
+Insert SymPy/Matplotlib plots at the cursor in Writer, Calc, Impress and Draw — 2D, parametric, polar, implicit and 3D surfaces.
 
 DESCRIPTION:
-Plot Bridge inserts high-quality vector (SVG) mathematical plots directly at the
-cursor in LibreOffice. Type one or more functions of x, set ranges, grid and
-labels, and the plot is placed in your document. Plots are re-editable: select
-an inserted plot and reopen the dialog to change anything — including adding or
-removing a function — and it is replaced in place.
+Plot Bridge inserts high-quality mathematical plots directly at the cursor in
+Writer, Calc, Impress and Draw. Choose a plot type, enter the function(s), set
+ranges, grid and labels, and the plot is placed in your document. Plots are
+re-editable: select an inserted plot and reopen the dialog to change anything —
+including adding or removing a function — and it is replaced in place.
+
+Plot types: 2D functions y=f(x), 2D parametric x(t) y(t), polar r(theta),
+implicit F(x,y)=0, 3D surface z=f(x,y), 3D cylindrical z=f(r,theta), 3D
+spherical r=f(theta,phi), and 3D parametric surface x,y,z(u,v). Includes an
+Examples dropdown (up to 5 per type) that fills the fields, colormap selection
+for 3D surfaces, and pi input in ranges (pi, 2pi, pi/2).
 
 Supports multiple functions on one graph, automatic or manual X/Y ranges,
-major/minor grid with optional manual step sizes, titles and axis labels, and a
+major/minor grid with optional manual step sizes, titles, axis labels and a
 legend. Expressions use SymPy syntax with implicit multiplication (3sin(x), 2x)
 and a wide function set (sin, cos, exp, log, sqrt, gamma, zeta, erf, besselj, …).
 
@@ -22,20 +28,20 @@ IMPORTANT — REQUIREMENTS:
 Plotting runs in your system Python 3, which must have SymPy, NumPy and
 Matplotlib installed:
     python3 -m pip install sympy numpy matplotlib
-Linux works out of the box. Windows/macOS need a system Python 3 with those
-modules and the path configured. This is an early, Linux-first release.
+Works on Linux and Windows.
 
 LICENSE:
 GPL-3.0-or-later
 
 CATEGORY:
-Writer / Calc / Impress — Tools / Education / Science
+Writer / Calc / Impress / Draw — Tools / Education / Science
 
 TAGS:
-plot, graph, math, sympy, matplotlib, function, chart, svg, education, science
+plot, graph, math, sympy, matplotlib, function, 3d, parametric, polar, implicit, chart, education, science
 
-RELEASE NOTES (0.1.0):
-First release. 2D function plotting end to end: multiple functions, X/Y ranges,
-major/minor grid, titles/labels, legend, SVG insert at cursor, in-place replot.
-Planned: 3D/parametric plots, derivatives/integrals, CSV data input, on-graph
-markers for roots/extrema/asymptotes.
+RELEASE NOTES (0.5.0):
+New plot types: 2D parametric, polar, implicit, 3D cylindrical z=f(r,theta),
+3D spherical r=f(theta,phi), and 3D parametric surface x,y,z(u,v). Added an
+Examples dropdown (up to 5 per type), colormap selection for 3D surfaces, and
+pi input in ranges. Windows support. The plot spec is stored on the image, so
+Replot re-edits it in place.
