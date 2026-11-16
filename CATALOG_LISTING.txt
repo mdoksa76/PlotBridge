@@ -14,10 +14,13 @@ re-editable: select an inserted plot and reopen the dialog to change anything �
 including adding or removing a function — and it is replaced in place.
 
 Plot types: 2D functions y=f(x), 2D parametric x(t) y(t), polar r(theta),
-implicit F(x,y)=0, 3D surface z=f(x,y), 3D cylindrical z=f(r,theta), 3D
-spherical r=f(theta,phi), and 3D parametric surface x,y,z(u,v). Includes an
-Examples dropdown (up to 5 per type) that fills the fields, colormap selection
-for 3D surfaces, and pi input in ranges (pi, 2pi, pi/2).
+implicit F(x,y)=0, 2D inequalities (up to 2, with intersection), derivatives
+(f, f', f'' … with explicit expressions), definite integral on [a,b] (Riemann
+L/M/R + Simpson with error vs the exact SymPy value), 3D surface z=f(x,y), 3D
+cylindrical z=f(r,theta), 3D spherical r=f(theta,phi), and 3D parametric
+surface x,y,z(u,v). Includes an Examples dropdown (up to 5 per type) that fills
+the fields, colormap selection for 3D surfaces, and pi input in ranges
+(pi, 2pi, pi/2).
 
 Supports multiple functions on one graph, automatic or manual X/Y ranges,
 major/minor grid with optional manual step sizes, titles, axis labels and a
@@ -38,6 +41,16 @@ Writer / Calc / Impress / Draw — Tools / Education / Science
 
 TAGS:
 plot, graph, math, sympy, matplotlib, function, 3d, parametric, polar, implicit, chart, education, science
+
+RELEASE NOTES (0.8.0):
+Three new 2D plot types: inequalities (up to 2, with shaded regions and their
+intersection; boundary solid for <=/>=, dashed for </>), derivatives (f and
+its successive derivatives, auto-stopping at 0, each labelled with its explicit
+expression), and definite integral on [a,b] (Riemann left/mid/right + Simpson,
+each with value and error against the exact SymPy result; checkboxes choose
+which methods show in the legend). Examples for all three. Minor grid now
+dotted and visible in PDF export. Default plot size 17 x 10.64 cm (two per A4
+page with room for a caption).
 
 RELEASE NOTES (0.5.0):
 New plot types: 2D parametric, polar, implicit, 3D cylindrical z=f(r,theta),

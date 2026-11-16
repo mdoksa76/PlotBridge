@@ -69,6 +69,9 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.colors
+import matplotlib.patches
+import matplotlib.lines
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registrira 3d projekciju)
 
@@ -183,8 +186,9 @@ def analyze_expr(expr, xmin, xmax, opts):
 # ZAJEDNIČKE JEZGRE
 # ==========================================================================
 def _figsize(spec):
-    return (float(spec.get("width", 16.0)) / 2.54,
-            float(spec.get("height", 10.0)) / 2.54)
+    # default 17 x 10.64 cm (omjer 1.6) — dva plota po A4 + prostor za opis
+    return (float(spec.get("width", 17.0)) / 2.54,
+            float(spec.get("height", 10.64)) / 2.54)
 
 
 def _out_path(spec, fmt):
@@ -236,10 +240,9 @@ def core2d(ax, spec):
     if major:
         ax.grid(which="major", linewidth=0.6, alpha=0.65, color="#888")
     if minor:
-        # minor must be a touch more visible than before, and dashed so it
-        # reads clearly as the finer grid even on screen
-        ax.grid(which="minor", linewidth=0.4, alpha=0.5,
-                color="#aaa", linestyle=":")
+        # isti ton kao major, samo dotted (da se razlikuje kao finiji grid)
+        ax.grid(which="minor", linewidth=0.6, alpha=0.65, color="#888",
+                linestyle=":")
 
     ax.axhline(0, color="black", linewidth=0.8)
     ax.axvline(0, color="black", linewidth=0.8)
@@ -267,6 +270,18 @@ def core3d(ax, spec):
             axis.set_minor_locator(
                 MultipleLocator(float(mn)) if mn else AutoMinorLocator())
     ax.grid(bool(major or minor))
+    # uskladi ton grida s 2D: major puna, minor dotted, isti ton
+    if major:
+        for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+            axis._axinfo["grid"].update(
+                dict(linewidth=0.6, color="#888", linestyle="-"))
+    if minor:
+        for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+            try:
+                axis.grid(which="minor", linewidth=0.6, color="#888",
+                          linestyle=":")
+            except Exception:
+                pass
 
     elev = spec.get("elev", 30)
     azim = spec.get("azim", -60)
@@ -776,6 +791,336 @@ def build_param_surface(spec):
 
 
 # ==========================================================================
+# 2D NEJEDNAKOSTI  (do dvije; ako su dvije, prikazuje se i presjek)
+# ==========================================================================
+_INEQ_RE = _re_compile = __import__("re").compile(
+    r"^\s*(.+?)\s*(<=|>=|=<|=>|<|>)\s*(.+?)\s*$")
+
+
+def _ineq_mask(s, Xg, Yg):
+    """Parse 'lhs OP rhs' (svaka strana izraz u x i/ili y) → (bool maska, label).
+    Dopušteni oblici: y < f(x), f(x) >= g(x), x^2+y^2 < 4, …"""
+    m = _INEQ_RE.match(s)
+    if not m:
+        raise ValueError("Not an inequality (need <, >, <= or >=): %s" % s)
+    lhs_s, op, rhs_s = m.group(1), m.group(2), m.group(3)
+    op = op.replace("=<", "<=").replace("=>", ">=")
+    lhs = _parse(lhs_s, {_X, _Y})
+    rhs = _parse(rhs_s, {_X, _Y})
+    fl = sp.lambdify((_X, _Y), lhs, modules=["numpy"])
+    fr = sp.lambdify((_X, _Y), rhs, modules=["numpy"])
+    with np.errstate(all="ignore"):
+        L = np.broadcast_to(np.asarray(fl(Xg, Yg), float), Xg.shape).astype(float)
+        R = np.broadcast_to(np.asarray(fr(Xg, Yg), float), Xg.shape).astype(float)
+    D = L - R
+    ok = np.isfinite(D)
+    if op == "<":
+        mask = ok & (D < 0)
+    elif op == "<=":
+        mask = ok & (D <= 0)
+    elif op == ">":
+        mask = ok & (D > 0)
+    else:  # >=
+        mask = ok & (D >= 0)
+    closed = op in ("<=", ">=")   # granica uključena → puna crna krivulja
+    return mask, s, D, closed
+
+
+def build_inequalities(spec):
+    """Do dvije nejednakosti. Svaka se sjenča svijetlo svojom bojom; ako su
+    dvije, presjek (gdje OBJE vrijede) se dodatno zasjenča zasićeno."""
+    funcs = spec.get("functions") or []
+    if isinstance(funcs, str):
+        funcs = [funcs]
+    funcs = [s for s in (f.strip() for f in funcs) if s][:2]
+    if not funcs:
+        raise ValueError("Enter at least one inequality, e.g. y < x^2-1.")
+
+    xr = spec.get("xrange") or [-10.0, 10.0]
+    xmin, xmax = float(xr[0]), float(xr[1])
+    if not (xmax > xmin):
+        raise ValueError("Invalid X range: xmax must be greater than xmin.")
+    yr = spec.get("yrange")
+    if yr and yr[0] is not None and yr[1] is not None:
+        ymin, ymax = float(yr[0]), float(yr[1])
+    else:
+        ymin, ymax = xmin, xmax
+    n = max(100, min(int(spec.get("samples", 500)), 1200))
+    legend = bool(spec.get("legend", True))
+    fmt = (spec.get("format") or "svg").lower()
+    if fmt not in ("svg", "png"):
+        raise ValueError("format must be 'svg' or 'png'.")
+
+    fig, ax = plt.subplots(figsize=_figsize(spec))
+    xs = np.linspace(xmin, xmax, n)
+    ys = np.linspace(ymin, ymax, n)
+    Xg, Yg = np.meshgrid(xs, ys)
+    extent = (xmin, xmax, ymin, ymax)
+
+    colors = ["#1f77b4", "#ff7f0e"]
+    masks = []
+    handles = []
+    boundaries = []   # (D, closed) za crtanje granične krivulje poslije
+    for i, s in enumerate(funcs):
+        mask, label, D, closed = _ineq_mask(s, Xg, Yg)
+        masks.append(mask)
+        boundaries.append((D, closed))
+        rgba = matplotlib.colors.to_rgb(colors[i])
+        # svijetlo ispunjeno područje gdje ta nejednakost vrijedi
+        layer = np.zeros(mask.shape + (4,), float)
+        layer[..., 0], layer[..., 1], layer[..., 2] = rgba
+        layer[..., 3] = np.where(mask, 0.22, 0.0)
+        # shading BELOW the grid (negative zorder) so grid lines stay visible
+        # through the filled region
+        ax.imshow(layer, origin="lower", extent=extent, aspect="auto",
+                  interpolation="nearest", zorder=-3 + i * 0.1)
+        handles.append(matplotlib.patches.Patch(
+            facecolor=colors[i], alpha=0.5, label=label))
+
+    # granična krivulja jednakosti (L = R): puna crna ako je rub uključen
+    # (≤ / ≥), isprekidana ako nije (< / >)
+    for (D, closed) in boundaries:
+        try:
+            ax.contour(Xg, Yg, D, levels=[0.0], colors="black",
+                       linewidths=1.1,
+                       linestyles="solid" if closed else "dashed",
+                       zorder=3)
+        except Exception:
+            pass
+
+    # presjek zasićeno
+    if len(masks) == 2:
+        inter = masks[0] & masks[1]
+        layer = np.zeros(inter.shape + (4,), float)
+        rgba = matplotlib.colors.to_rgb("#2ca02c")
+        layer[..., 0], layer[..., 1], layer[..., 2] = rgba
+        layer[..., 3] = np.where(inter, 0.55, 0.0)
+        ax.imshow(layer, origin="lower", extent=extent, aspect="auto",
+                  interpolation="nearest", zorder=-2)
+        handles.append(matplotlib.patches.Patch(
+            facecolor="#2ca02c", alpha=0.75, label="intersection"))
+
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    core2d(ax, spec)
+    if legend and handles:
+        ax.legend(handles=handles, loc="best", fontsize="small")
+    fig.tight_layout()
+    path = _save(fig, spec, fmt)
+    return {"ok": True, "path": path, "format": fmt, "n": len(funcs)}
+
+
+# ==========================================================================
+# DERIVACIJE  (osnovna f + uzastopne derivacije; stop kad postane 0)
+# ==========================================================================
+def build_derivative(spec):
+    """Nacrta f(x) i njezine uzastopne derivacije do reda 'nderiv'.
+    Staje ranije ako derivacija postane identički 0. Legenda = eksplicitni
+    (pojednostavljeni) izraz svake krivulje."""
+    funcs = spec.get("functions") or []
+    if isinstance(funcs, str):
+        funcs = [funcs]
+    funcs = [s for s in (f.strip() for f in funcs) if s]
+    if not funcs:
+        raise ValueError("Enter a function f(x), e.g. x^3-3x.")
+    base = funcs[0]
+    nderiv = max(0, min(int(spec.get("nderiv", 1) or 0), 8))
+
+    xr = spec.get("xrange") or [-10.0, 10.0]
+    xmin, xmax = float(xr[0]), float(xr[1])
+    if not (xmax > xmin):
+        raise ValueError("Invalid X range: xmax must be greater than xmin.")
+    yr = spec.get("yrange")
+    samples = max(50, min(int(spec.get("samples", 800)), 20000))
+    legend = bool(spec.get("legend", True))
+    fmt = (spec.get("format") or "svg").lower()
+    if fmt not in ("svg", "png"):
+        raise ValueError("format must be 'svg' or 'png'.")
+
+    fig, ax = plt.subplots(figsize=_figsize(spec))
+    xs = np.linspace(xmin, xmax, samples)
+
+    expr = _parse(base, {_X})
+    exprs = [sp.simplify(expr)]
+    for k in range(1, nderiv + 1):
+        d = sp.simplify(sp.diff(expr, _X, k))
+        exprs.append(d)
+        if d == 0:          # daljnje derivacije su sve 0 → stani
+            break
+
+    n_ok = 0
+    for i, e in enumerate(exprs):
+        f = sp.lambdify(_X, e, modules=["numpy"])
+        with np.errstate(all="ignore"):
+            ys = np.asarray(f(xs) * np.ones_like(xs), dtype=float)
+            ys = np.where(np.isfinite(ys), ys, np.nan)
+        ys = _break_asymptotes(xs, ys)
+        # legenda: eksplicitni izraz (f(x): baza, zatim derivacije)
+        label = sp.sstr(e)
+        if i == 0:
+            label = "f(x) = " + label
+        else:
+            prime = "'" * i if i <= 3 else "^(%d)" % i
+            label = ("f%s(x) = " % prime) + label
+        ax.plot(xs, ys, label=label, linewidth=1.6)
+        n_ok += 1
+
+    ax.set_xlim(xmin, xmax)
+    if yr:
+        ax.set_ylim(float(yr[0]), float(yr[1]))
+    core2d(ax, spec)
+    if legend and n_ok:
+        ax.legend(loc="best", fontsize="small")
+    fig.tight_layout()
+    path = _save(fig, spec, fmt)
+    return {"ok": True, "path": path, "format": fmt, "n": n_ok}
+
+
+# ==========================================================================
+# ODREĐENI INTEGRAL  na [a, b]  (Riemann L/M/R + Simpson + egzaktno)
+# ==========================================================================
+def _riemann(fv, a, b, n, kind):
+    """Riemannova suma. kind: 'left' | 'mid' | 'right'."""
+    h = (b - a) / n
+    if kind == "left":
+        xs = a + h * np.arange(n)
+    elif kind == "right":
+        xs = a + h * np.arange(1, n + 1)
+    else:  # mid
+        xs = a + h * (np.arange(n) + 0.5)
+    return float(np.sum(fv(xs)) * h)
+
+
+def _simpson(fv, a, b, n):
+    """Simpsonovo pravilo (n mora biti paran; podesi se)."""
+    if n % 2 == 1:
+        n += 1
+    xs = np.linspace(a, b, n + 1)
+    ys = fv(xs)
+    h = (b - a) / n
+    return float(h / 3.0 * (ys[0] + ys[-1]
+                            + 4.0 * np.sum(ys[1:-1:2])
+                            + 2.0 * np.sum(ys[2:-1:2])))
+
+
+def build_integral(spec):
+    """Određeni integral f(x) na [a, b]: krivulja + ispunjeno područje, a u
+    legendi aproksimacije (Riemann L/M/R, Simpson) s vrijednošću i |greškom|
+    naspram egzaktne vrijednosti (ako je sympy uspije izračunati)."""
+    funcs = spec.get("functions") or []
+    if isinstance(funcs, str):
+        funcs = [funcs]
+    funcs = [s for s in (f.strip() for f in funcs) if s]
+    if not funcs:
+        raise ValueError("Enter a function f(x), e.g. sin(x).")
+    base = funcs[0]
+
+    ab = spec.get("ab") or spec.get("interval")
+    if not (ab and ab[0] is not None and ab[1] is not None):
+        raise ValueError("Enter the interval limits a and b.")
+    a, b = float(ab[0]), float(ab[1])
+    if not (b > a):
+        raise ValueError("Interval invalid: b must be greater than a.")
+    nsub = max(1, min(int(spec.get("nsub", 10) or 10), 500))
+
+    xr = spec.get("xrange")
+    if xr and xr[0] is not None and xr[1] is not None:
+        xmin, xmax = float(xr[0]), float(xr[1])
+    else:
+        pad = 0.15 * (b - a)
+        xmin, xmax = a - pad, b + pad
+    yr = spec.get("yrange")
+    samples = max(50, min(int(spec.get("samples", 800)), 20000))
+    legend = bool(spec.get("legend", True))
+    fmt = (spec.get("format") or "svg").lower()
+    if fmt not in ("svg", "png"):
+        raise ValueError("format must be 'svg' or 'png'.")
+
+    expr = _parse(base, {_X})
+    fv = sp.lambdify(_X, expr, modules=["numpy"])
+
+    # egzaktna vrijednost (ako uspije)
+    exact = None
+    try:
+        val = sp.integrate(expr, (_X, sp.nsimplify(a), sp.nsimplify(b)))
+        ev = complex(sp.N(val))
+        if abs(ev.imag) < 1e-9 and sp.im(val) == 0:
+            exact = float(ev.real)
+    except Exception:
+        exact = None
+
+    def _fnum(xv):
+        with np.errstate(all="ignore"):
+            return np.asarray(fv(xv) * np.ones_like(xv), float)
+
+    # koje metode korisnik želi u legendi (default: sve)
+    methods = spec.get("methods")
+    if not methods:
+        methods = ["left", "mid", "right", "simpson"]
+    _MNAME = {"left": "Riemann L", "mid": "Riemann M",
+              "right": "Riemann R", "simpson": "Simpson"}
+    approx = {}
+    for mk in ("left", "mid", "right"):
+        if mk in methods:
+            approx[_MNAME[mk]] = _riemann(_fnum, a, b, nsub, mk)
+    if "simpson" in methods:
+        approx[_MNAME["simpson"]] = _simpson(_fnum, a, b, nsub)
+
+    fig, ax = plt.subplots(figsize=_figsize(spec))
+    xs = np.linspace(xmin, xmax, samples)
+    with np.errstate(all="ignore"):
+        ys = np.asarray(_fnum(xs), float)
+        ys = np.where(np.isfinite(ys), ys, np.nan)
+    ys = _break_asymptotes(xs, ys)
+    flabel = "f(x) = " + sp.sstr(expr)
+    ax.plot(xs, ys, color="#1f77b4", linewidth=1.8, label=flabel)
+
+    # ispunjeno područje ispod krivulje na [a,b]
+    xf = np.linspace(a, b, max(100, samples // 2))
+    with np.errstate(all="ignore"):
+        yf = np.asarray(_fnum(xf), float)
+    # fill ISPOD grida (negativni zorder) da grid linije ostanu vidljive
+    ax.fill_between(xf, 0, yf, where=np.isfinite(yf), alpha=0.18,
+                    color="#1f77b4", zorder=-2)
+    ax.axvline(a, color="#555", linewidth=0.8, linestyle="--")
+    ax.axvline(b, color="#555", linewidth=0.8, linestyle="--")
+
+    ax.set_xlim(xmin, xmax)
+    if yr:
+        ax.set_ylim(float(yr[0]), float(yr[1]))
+    core2d(ax, spec)
+
+    # legenda s obračunima (samo odabrane metode)
+    handles = [matplotlib.lines.Line2D([], [], color="#1f77b4", linewidth=1.8,
+                                       label=flabel)]
+    if exact is not None:
+        handles.append(matplotlib.patches.Patch(
+            facecolor="none", edgecolor="none",
+            label="exact = %.6g" % exact))
+    for name in ("Riemann L", "Riemann M", "Riemann R", "Simpson"):
+        if name not in approx:
+            continue
+        v = approx[name]
+        if exact is not None:
+            txt = "%s = %.6g  (err %.2g)" % (name, v, abs(v - exact))
+        else:
+            txt = "%s = %.6g" % (name, v)
+        handles.append(matplotlib.patches.Patch(
+            facecolor="none", edgecolor="none", label=txt))
+
+    if legend:
+        ax.legend(handles=handles, loc="best", fontsize="small",
+                  handlelength=1.2)
+    fig.tight_layout()
+    path = _save(fig, spec, fmt)
+    rep = {"ok": True, "path": path, "format": fmt, "n": 1,
+           "approx": approx}
+    if exact is not None:
+        rep["exact"] = exact
+    return rep
+
+
+# ==========================================================================
 # DISPATCHER
 # ==========================================================================
 _BUILDERS = {
@@ -783,6 +1128,9 @@ _BUILDERS = {
     "parametric": build_parametric,
     "polar": build_polar,
     "implicit": build_implicit,
+    "inequalities": build_inequalities,
+    "derivative": build_derivative,
+    "integral": build_integral,
     "3d": build_3d,
     "cylindrical": build_cylindrical,
     "spherical": build_spherical,

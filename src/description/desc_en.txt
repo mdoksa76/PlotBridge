@@ -5,6 +5,9 @@ Plot types:
 - 2D parametric x(t), y(t)
 - Polar r(theta)
 - Implicit F(x,y)=0
+- 2D inequalities (up to 2; shaded regions + intersection; boundary solid for <=/>=, dashed for </>)
+- Derivatives (f and its successive derivatives, auto-stops at 0, explicit expression in the legend)
+- Definite integral on [a,b] (Riemann left/mid/right + Simpson, each with value and error vs the exact SymPy result; choose which methods appear in the legend)
 - 3D surface z=f(x,y)
 - 3D cylindrical z=f(r,theta)
 - 3D spherical r=f(theta,phi)
@@ -14,6 +17,7 @@ Also:
 - Examples dropdown (up to 5 per plot type, fills the fields)
 - Colormap selection for 3D surfaces
 - Pi input in ranges (pi, 2pi, pi/2 ...)
+- Major/minor grid (minor dotted)
 - Windows and Linux
 
 Uses an external system Python 3 with matplotlib, numpy and sympy installed. GPL-3.0.

@@ -17,14 +17,23 @@ Plotting is done by a small external Python builder using
 - **2D parametric** x(t), y(t)
 - **Polar** r(θ) — with orientation and scale controls
 - **Implicit** F(x, y) = 0
+- **2D inequalities** — up to two; each region shaded, their intersection
+  shown stronger; boundary solid for ≤/≥, dashed for </>
+- **Derivatives** — f and its successive derivatives on one graph, stops
+  automatically when a derivative becomes 0; each curve labelled with its
+  explicit expression
+- **Definite integral** on [a, b] — Riemann (left/mid/right) and Simpson,
+  each shown with its value and the error against the exact SymPy result;
+  checkboxes pick which methods appear in the legend
 - **3D surface** z = f(x, y)
 - **3D cylindrical** z = f(r, θ)
 - **3D spherical** r = f(θ, φ)
 - **3D parametric surface** x, y, z (u, v) — tori, Möbius strips, helicoids …
 
 Plus: an **Examples** dropdown (up to 5 ready-made examples per type that fill
-the fields), **colormap** selection for 3D surfaces, and **π input** in ranges
-(`pi`, `2pi`, `pi/2` …).
+the fields), **colormap** selection for 3D surfaces, **π input** in ranges
+(`pi`, `2pi`, `pi/2` …), and a **major/minor grid** (minor dotted). Plots are
+inserted at 17 × 10.64 cm by default (two per A4 page with room for a caption).
 
 ## Requirements
 

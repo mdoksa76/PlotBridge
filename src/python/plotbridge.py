@@ -142,6 +142,7 @@ SPEC_PROP = "PlotBridgeSpec"
 
 # dropdown order; index in ListBox == index here
 KIND_ORDER = ("2d", "parametric", "polar", "implicit",
+              "inequalities", "derivative", "integral",
               "3d", "cylindrical", "spherical", "param_surface")
 
 # 3D surface colormaps (matplotlib names). Easy to extend.
@@ -179,6 +180,37 @@ EXAMPLES = {
         ("Hyperbola", {"func": ["x^2-y^2=1"], "x": ("-5", "5")}),
         ("Descartes' folium", {"func": ["x^3+y^3-3*x*y"], "x": ("-3", "3")}),
         ("Lemniscate", {"func": ["(x^2+y^2)^2-4*(x^2-y^2)"], "x": ("-3", "3")}),
+    ],
+    "inequalities": [
+        ("Below parabola", {"ineq": ["y < x^2-1", ""],
+                            "x": ("-4", "4"), "y": ("-4", "6")}),
+        ("Band  -2<y<2", {"ineq": ["y < 2", "y > -2"],
+                          "x": ("-5", "5"), "y": ("-4", "4")}),
+        ("Disk  x²+y²<9", {"ineq": ["x^2+y^2 < 9", ""],
+                           "x": ("-4", "4"), "y": ("-4", "4")}),
+        ("Half-plane  y≥x", {"ineq": ["y >= x", ""],
+                             "x": ("-5", "5"), "y": ("-5", "5")}),
+        ("Lens", {"ineq": ["y > x^2-2", "y < 2-x^2"],
+                  "x": ("-3", "3"), "y": ("-3", "3")}),
+    ],
+    "derivative": [
+        ("Cubic  x³-3x", {"func": ["x^3-3x"], "nderiv": 3, "x": ("-3", "3")}),
+        ("Quadratic  x²", {"func": ["x^2"], "nderiv": 2, "x": ("-4", "4")}),
+        ("Sine  sin(x)", {"func": ["sin(x)"], "nderiv": 3, "x": ("-6", "6")}),
+        ("Exp  e^x", {"func": ["exp(x)"], "nderiv": 2, "x": ("-2", "2")}),
+        ("Quartic  x⁴-4x²", {"func": ["x^4-4x^2"], "nderiv": 2,
+                              "x": ("-3", "3")}),
+    ],
+    "integral": [
+        ("Sine  ∫₀^π sin x", {"func": ["sin(x)"], "ab": ("0", "pi"),
+                              "nsub": "10"}),
+        ("Parabola  ∫₀² x²", {"func": ["x^2"], "ab": ("0", "2"),
+                              "nsub": "8"}),
+        ("Gaussian  ∫ e^-x²", {"func": ["exp(-x^2)"], "ab": ("-2", "2"),
+                               "nsub": "12"}),
+        ("Line  ∫₀³ 2x+1", {"func": ["2x+1"], "ab": ("0", "3"), "nsub": "6"}),
+        ("Cosine  ∫₀^{π/2} cos x", {"func": ["cos(x)"], "ab": ("0", "pi/2"),
+                                    "nsub": "10"}),
     ],
     "3d": [
         ("Linear  x+y", {"f3": "x+y", "x": ("-5", "5")}),
@@ -335,6 +367,9 @@ def _build_dialog(spec=None):
     # dropdown order == KIND_ORDER index
     lb.StringItemList = ("2D function", "2D parametric  x(t), y(t)",
                          "2D polar  r(θ)", "2D implicit  F(x, y) = 0",
+                         "2D inequalities  (max 2)",
+                         "Derivatives  f, f', f''…",
+                         "Definite integral  ∫[a,b]",
                          "3D surface  z = f(x, y)",
                          "3D cylindrical  z = f(r, θ)",
                          "3D spherical  r = f(θ, φ)",
@@ -421,6 +456,35 @@ def _build_dialog(spec=None):
     _add(dmodel, "FixedText", "hintT", dict(
         PositionX=134, PositionY=y + 2, Width=90, Height=9,
         Label="(empty=0..2π; pi ok)"))
+
+    # --- derivative controls: order (n). Overlays the t: band. ---
+    _add(dmodel, "FixedText", "lblNDeriv", dict(
+        PositionX=6, PositionY=y + 2, Width=70, Height=10,
+        Label="Derivative order n:"))
+    _add(dmodel, "Edit", "txtNDeriv", dict(
+        PositionX=80, PositionY=y, Width=28, Height=12,
+        Text=str(spec.get("nderiv", 1))))
+    _add(dmodel, "FixedText", "hintNDeriv", dict(
+        PositionX=114, PositionY=y + 2, Width=110, Height=9,
+        Label="(f + n derivatives; stops at 0)"))
+
+    # --- integral controls: a, b, subdivisions. Overlays the t: band. ---
+    _ab = spec.get("ab") or spec.get("interval") or [None, None]
+    _add(dmodel, "FixedText", "lblIntA", dict(
+        PositionX=6, PositionY=y + 2, Width=10, Height=10, Label="a"))
+    _add(dmodel, "Edit", "txtIntA", dict(
+        PositionX=18, PositionY=y, Width=40, Height=12,
+        Text="" if _ab[0] is None else _s(_ab[0])))
+    _add(dmodel, "FixedText", "lblIntB", dict(
+        PositionX=62, PositionY=y + 2, Width=10, Height=10, Label="b"))
+    _add(dmodel, "Edit", "txtIntB", dict(
+        PositionX=74, PositionY=y, Width=40, Height=12,
+        Text="" if _ab[1] is None else _s(_ab[1])))
+    _add(dmodel, "FixedText", "lblIntN", dict(
+        PositionX=120, PositionY=y + 2, Width=36, Height=10, Label="subdiv"))
+    _add(dmodel, "Edit", "txtIntN", dict(
+        PositionX=156, PositionY=y, Width=30, Height=12,
+        Text=str(spec.get("nsub", 10))))
     y += 16
 
     xr = spec.get("xrange") or [-10, 10]
@@ -582,6 +646,24 @@ def _build_dialog(spec=None):
     cm.StringItemList = tuple(CMAPS)
     cur_cm = (spec.get("cmap") or "viridis")
     cm.SelectedItems = (CMAPS.index(cur_cm) if cur_cm in CMAPS else 0,)
+
+    # --- integral methods (integral only; overlays the colormap band,
+    #     which is 3D-only, so the two never show together) ---
+    _meth = spec.get("methods") or ["left", "mid", "right", "simpson"]
+    _add(dmodel, "FixedText", "lblIntM", dict(
+        PositionX=6, PositionY=y + 2, Width=34, Height=10, Label="In legend:"))
+    _add(dmodel, "CheckBox", "chkML", dict(
+        PositionX=44, PositionY=y + 1, Width=34, Height=11, Label="R-L",
+        State=1 if "left" in _meth else 0))
+    _add(dmodel, "CheckBox", "chkMM", dict(
+        PositionX=80, PositionY=y + 1, Width=34, Height=11, Label="R-M",
+        State=1 if "mid" in _meth else 0))
+    _add(dmodel, "CheckBox", "chkMR", dict(
+        PositionX=116, PositionY=y + 1, Width=34, Height=11, Label="R-R",
+        State=1 if "right" in _meth else 0))
+    _add(dmodel, "CheckBox", "chkMS", dict(
+        PositionX=152, PositionY=y + 1, Width=56, Height=11, Label="Simpson",
+        State=1 if "simpson" in _meth else 0))
     y += 18
 
     # --- examples dropdown (list filled per type by the listener) ---
@@ -640,6 +722,9 @@ def _build_dialog(spec=None):
         is_param = (k == "parametric")
         is_polar = (k == "polar")
         is_implicit = (k == "implicit")
+        is_ineq = (k == "inequalities")
+        is_deriv = (k == "derivative")
+        is_integ = (k == "integral")
         uses_param_range = is_param or is_polar  # t / theta
 
         # input label text (for the multiline/functions field)
@@ -647,6 +732,9 @@ def _build_dialog(spec=None):
             "2d": "Functions of x (one per line):",
             "polar": "r(θ)  (one per line):",
             "implicit": "F(x, y)  (curve is F = 0; one per line):",
+            "inequalities": "Inequalities (max 2; e.g. y < x^2-1):",
+            "derivative": "Function f(x)  (first line):",
+            "integral": "Function f(x)  (first line):",
             "3d": "Surface z = f(x, y):",
             "cylindrical": "Surface z = f(r, θ):",
             "spherical": "Radius r = f(θ, φ):",
@@ -684,6 +772,17 @@ def _build_dialog(spec=None):
         except Exception:
             pass
 
+        # derivative controls (order n) — overlay the t: band
+        for n in ("lblNDeriv", "txtNDeriv", "hintNDeriv"):
+            vis(n, is_deriv)
+        # integral controls (a, b, subdiv) — overlay the t: band
+        for n in ("lblIntA", "txtIntA", "lblIntB", "txtIntB",
+                  "lblIntN", "txtIntN"):
+            vis(n, is_integ)
+        # integral method checkboxes — overlay the colormap band
+        for n in ("lblIntM", "chkML", "chkMM", "chkMR", "chkMS"):
+            vis(n, is_integ)
+
         # view angles + colormap — every 3D surface
         for n in ("lblView", "txtElev", "txtAzim", "lblCmap", "lstCmap"):
             vis(n, is_surf)
@@ -708,7 +807,9 @@ def _build_dialog(spec=None):
         except Exception:
             pass
         # name/major/minor columns only make sense for true cartesian plots
-        show_axis_extras = cart and (k in ("2d", "implicit", "3d"))
+        show_axis_extras = cart and (k in ("2d", "implicit", "3d",
+                                           "inequalities", "derivative",
+                                           "integral"))
         for n in ("lblX", "txtXmin", "txtXmax",
                   "lblY", "txtYmin", "txtYmax", "hintAuto"):
             vis(n, cart)
@@ -742,17 +843,19 @@ def _build_dialog(spec=None):
                    "txtZmin", "txtZmax", "txtXL", "txtYL", "txtZL",
                    "txtXMaj", "txtXMin", "txtYMaj", "txtYMin",
                    "txtZMaj", "txtZMin", "txtElev", "txtAzim",
-                   "txtRmax", "txtRstep", "txtThStep")
+                   "txtRmax", "txtRstep", "txtThStep",
+                   "txtNDeriv", "txtIntA", "txtIntB", "txtIntN")
 
     def _defaults(k):
         d = {n: "" for n in _TYPED_TEXT}
         d.update({"txtXL": "x", "txtYL": "y", "txtZL": "z",
-                  "txtElev": "30", "txtAzim": "-60"})
+                  "txtElev": "30", "txtAzim": "-60",
+                  "txtNDeriv": "1", "txtIntN": "10"})
         if k == "3d":
             d["txtXmin"], d["txtXmax"] = "-5", "5"
         elif k in ("parametric", "polar"):
             pass  # t/theta range empty = 0..2π; no cartesian defaults needed
-        else:  # 2d, implicit
+        else:  # 2d, implicit, inequalities, derivative, integral
             d["txtXmin"], d["txtXmax"] = "-10", "10"
         return d
 
@@ -803,6 +906,8 @@ def _build_dialog(spec=None):
         # function input per type
         if "func" in fields:   # multiline list
             st("txtFunc", "\n".join(fields["func"]))
+        if "ineq" in fields:   # up to 2 inequalities, one per line
+            st("txtFunc", "\n".join([s for s in fields["ineq"] if s]))
         if "f3" in fields:     # single surface
             st("txtFunc3", fields["f3"])
         if "pairs" in fields:  # parametric curves
@@ -822,6 +927,12 @@ def _build_dialog(spec=None):
             st("txtYmin", fields["y"][0]); st("txtYmax", fields["y"][1])
         if "t" in fields:
             st("txtTmin", fields["t"][0]); st("txtTmax", fields["t"][1])
+        if "nderiv" in fields:
+            st("txtNDeriv", str(fields["nderiv"]))
+        if "ab" in fields:
+            st("txtIntA", fields["ab"][0]); st("txtIntB", fields["ab"][1])
+        if "nsub" in fields:
+            st("txtIntN", str(fields["nsub"]))
 
     class _KindListener(unohelper.Base, XItemListener):
         def itemStateChanged(self, ev):
@@ -1028,6 +1139,56 @@ def _read_dialog(dialog):
             "kind": "implicit",
             "functions": funcs,
             "xrange": xr2 or [-10.0, 10.0],
+            "yrange": yr2,
+            "legend": gchk("chkLegend"),
+        })
+        return spec
+
+    if kind == "inequalities":
+        spec = dict(common)
+        spec.update({
+            "kind": "inequalities",
+            "functions": funcs[:2],
+            "xrange": xr2 or [-10.0, 10.0],
+            "yrange": yr2,
+            "legend": gchk("chkLegend"),
+        })
+        return spec
+
+    if kind == "derivative":
+        spec = dict(common)
+        spec.update({
+            "kind": "derivative",
+            "functions": funcs[:1],
+            "nderiv": int(gnum("txtNDeriv", 1) or 1),
+            "xrange": xr2 or [-10.0, 10.0],
+            "yrange": yr2,
+            "legend": gchk("chkLegend"),
+        })
+        return spec
+
+    if kind == "integral":
+        a = gnum("txtIntA", None)
+        b = gnum("txtIntB", None)
+        methods = []
+        if gchk("chkML"):
+            methods.append("left")
+        if gchk("chkMM"):
+            methods.append("mid")
+        if gchk("chkMR"):
+            methods.append("right")
+        if gchk("chkMS"):
+            methods.append("simpson")
+        if not methods:          # ništa označeno → sve (da legenda ne bude prazna)
+            methods = ["left", "mid", "right", "simpson"]
+        spec = dict(common)
+        spec.update({
+            "kind": "integral",
+            "functions": funcs[:1],
+            "ab": [a, b] if (a is not None and b is not None) else None,
+            "nsub": int(gnum("txtIntN", 10) or 10),
+            "methods": methods,
+            "xrange": xr2,
             "yrange": yr2,
             "legend": gchk("chkLegend"),
         })
@@ -1322,6 +1483,22 @@ def _do_insert():
     elif k == "implicit":
         if not spec.get("functions"):
             _msgbox(parent_peer, "Please enter F(x, y)  (the curve is F = 0).")
+            return
+    elif k == "inequalities":
+        if not spec.get("functions"):
+            _msgbox(parent_peer,
+                    "Please enter at least one inequality, e.g. y < x^2-1.")
+            return
+    elif k == "derivative":
+        if not spec.get("functions"):
+            _msgbox(parent_peer, "Please enter a function f(x).")
+            return
+    elif k == "integral":
+        if not spec.get("functions"):
+            _msgbox(parent_peer, "Please enter a function f(x).")
+            return
+        if not spec.get("ab"):
+            _msgbox(parent_peer, "Please enter the interval limits a and b.")
             return
     else:
         if not spec.get("functions"):
